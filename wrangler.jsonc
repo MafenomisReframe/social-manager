@@ -9,5 +9,12 @@
     "run_worker_first": [
       "/api/*"
     ]
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "social-manager-db",
+      "database_id": "4af520f0-a65c-4c63-ac9b-6d8144a25d71"
+    }
+  ]
 }
