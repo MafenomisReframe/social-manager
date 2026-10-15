@@ -29,3 +29,7 @@ button.ghost{background:transparent!important;color:#c9b2ff!important;border:1px
 .save-status.saving{color:var(--muted)}
 .coming-soon{margin-top:22px}
 @media(max-width:600px){.profile-heading{flex-direction:column;align-items:flex-start;gap:12px}}
+.who{margin:-18px 8px 22px;display:flex;flex-direction:column;gap:2px}
+.who span{font-size:13px;color:#e4e6ff;overflow:hidden;text-overflow:ellipsis}
+.who small{margin:0;padding:0;color:#b58cff;font-size:11px}
+input[readonly],textarea[readonly]{background:#121a29;color:#c9d2e6;cursor:default}

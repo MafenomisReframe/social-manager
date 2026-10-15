@@ -26,6 +26,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
   const [loadError, setLoadError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [status, setStatus] = useState({ type: "idle", text: "" });
+  const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -34,6 +35,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
       .then(({ client }) => {
         if (!alive) return;
         const f = pickForm(client);
+        setCanEdit(client.permissions?.edit === true);
         setSaved(f);
         setForm(f);
       })
@@ -99,6 +101,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
       placeholder: field.placeholder,
       maxLength: field.max,
       "aria-invalid": err ? "true" : undefined,
+      readOnly: !canEdit,
     };
     return (
       <label key={field.key} className={field.multiline ? "wide" : undefined} htmlFor={props.id}>
@@ -167,11 +170,12 @@ export default function ClientDetail({ id, tab, onSaved }) {
                   onChange={(e) => update("name", e.target.value)}
                   maxLength={120}
                   required
+                  readOnly={!canEdit}
                   aria-invalid={fieldErrors.name ? "true" : undefined}
                 />
                 {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
               </label>
-              {PROFILE_FIELDS.filter((f) => f.group === "anagrafica").map(renderField)}
+              {PROFILE_FIELDS.filter((f) => f.group === "anagrafica" && (canEdit || f.key !== "notes")).map(renderField)}
             </>
           )}
 
@@ -185,14 +189,17 @@ export default function ClientDetail({ id, tab, onSaved }) {
             </>
           )}
 
-          <div className="profile-actions">
+          {!canEdit && (
+            <p className="wide demo-note">Sola lettura: per modifiche apri una Segnalazione al team.</p>
+          )}
+          {canEdit && <div className="profile-actions">
             <button disabled={!dirty || status.type === "saving"}>
               {status.type === "saving" ? "Salvataggio..." : "Salva modifiche"}
             </button>
             <span role="status" className={"save-status " + (dirty && status.type === "idle" ? "dirty" : status.type)}>
               {dirty && status.type === "idle" ? "Modifiche non salvate" : status.text}
             </span>
-          </div>
+          </div>}
         </form>
       )}
 

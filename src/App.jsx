@@ -13,6 +13,12 @@ export default function App() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    api.session().then(setSession).catch(() => setSession(null));
+  }, []);
+  const canManage = Boolean(session?.can?.manageClients);
 
   const reloadClients = useCallback(async () => {
     try {
@@ -43,7 +49,7 @@ export default function App() {
         content = <Dashboard clients={clients} loading={loading} />;
         break;
       case "clienti":
-        content = <Clients clients={clients} loading={loading} error={error} onChanged={reloadClients} />;
+        content = <Clients clients={clients} loading={loading} error={error} onChanged={reloadClients} canManage={canManage} />;
         break;
       case "calendario":
         content = <ContentDemo title="Piano editoriale" />;
@@ -71,7 +77,7 @@ export default function App() {
 
   return (
     <div className="layout">
-      <Sidebar current={route.slug} />
+      <Sidebar current={route.slug} session={session} />
       <main>
         <Header section={section} title={title} clients={clients} currentClientId={route.clientId} />
         {content}

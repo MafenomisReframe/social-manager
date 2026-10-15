@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api.js";
 import { navigate, clientPath } from "../router.jsx";
 
-export default function Clients({ clients, loading, error, onChanged }) {
+export default function Clients({ clients, loading, error, onChanged, canManage }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -30,7 +30,7 @@ export default function Clients({ clients, loading, error, onChanged }) {
       <h2>Clienti</h2>
       <p>Le aziende create qui vengono salvate nel database di Social Manager, con accesso riservato all'agenzia.</p>
 
-      <form onSubmit={addClient} className="client-form">
+      {canManage && <form onSubmit={addClient} className="client-form">
         <input
           aria-label="Nome azienda"
           placeholder="Nome nuova azienda"
@@ -41,7 +41,7 @@ export default function Clients({ clients, loading, error, onChanged }) {
           required
         />
         <button disabled={saving}>{saving ? "Salvataggio..." : "+ Nuovo cliente"}</button>
-      </form>
+      </form>}
 
       {(formError || error) && (
         <p role="alert" className="form-error">

@@ -11,7 +11,10 @@ Applicazione multi-tenant di Re-Frame Communication per gestire i social dei cli
 ```
 index.html            pagina che carica src/main.jsx
 vite.config.js        build del frontend (output in dist/)
-worker.js             API /api/* con verifica JWT di Cloudflare Access
+worker.js             verifica JWT di Cloudflare Access, poi passa a api/handler.js
+api/handler.js        endpoint /api/* (sessione, clienti)
+api/permissions.js    UNICO punto che decide chi vede/modifica cosa
+tests/                test di isolamento multi-tenant e validazione (bun test)
 wrangler.jsonc        Worker, assets, D1 e POLICY_AUD (non rimuovere nei deploy)
 migrations/           schema SQL di riferimento
 src/
@@ -38,9 +41,30 @@ npm run dev        # solo frontend
 npm run build      # genera dist/ usata dal Worker
 ```
 
+## Ruoli e permessi
+
+| Ruolo | Dove | Può fare |
+|---|---|---|
+| owner, agency_admin | tenant agenzia | vede e modifica tutti i clienti dell'agenzia, crea clienti |
+| editor | tenant agenzia | vede e modifica i clienti dell'agenzia, non ne crea |
+| client_viewer | tenant cliente | vede solo la propria azienda, sola lettura, senza note interne |
+
+Ogni cliente appartiene a un'agenzia tramite `tenants.agency_id`; `tenants.kind` distingue `agency` e `client`. Un'agenzia non vede mai i clienti di un'altra (verificato dai test).
+
 ## Database
 
-Le tabelle sono state create a mano dalla Console D1 e contengono dati reali: **non azzerare il database**. Verificato il 15/10/2026: tutte le tabelle di `0001_initial.sql` esistono tranne `reports`.
+Contiene dati reali: **non azzerare il database**. Migrazioni in `migrations/`, registrate nella tabella `d1_migrations`:
+
+- `0001_initial.sql` — schema iniziale (creato a mano dalla Console D1)
+- `0002_agency_scoping.sql` — `kind`, `agency_id`, tabella `reports` (applicata il 15/10/2026)
+
+Le nuove migrazioni vanno applicate PRIMA del deploy del codice che le usa, e devono essere additive.
+
+## Test
+
+```
+bun test
+```
 
 ## Sicurezza
 

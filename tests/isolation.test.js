@@ -1,0 +1,154 @@
+// Test di isolamento multi-tenant: nessun utente deve vedere o modificare dati di altri.
+// Avvio: bun test
+import { beforeEach, describe, expect, test } from "bun:test";
+import { createTestDb } from "./d1-sqlite.js";
+import { handleApi } from "../api/handler.js";
+
+const ORIGIN = "https://social-manager.test";
+let env;
+
+// Due agenzie (Re-Frame e un'altra), tre clienti, cinque utenti con ruoli diversi.
+function seed(db) {
+  db.raw.exec(`
+    INSERT INTO tenants(id,name,slug,kind) VALUES
+      ('tenant-reframe-001','Re-Frame','reframe','agency'),
+      ('agency-b','Agenzia B','agency-b','agency');
+    INSERT INTO tenants(id,name,slug,kind,agency_id) VALUES
+      ('client-a1','Effebiemme','client-a1','client','tenant-reframe-001'),
+      ('client-a2','Seconda A','client-a2','client','tenant-reframe-001'),
+      ('client-b1','Cliente di B','client-b1','client','agency-b');
+    INSERT INTO users(id,email) VALUES
+      ('u-owner-a','owner@a.it'),('u-editor-a','editor@a.it'),('u-viewer-a1','viewer@a1.it'),
+      ('u-owner-b','owner@b.it'),('u-nobody','nobody@x.it'),('u-legacy','legacy@x.it');
+    INSERT INTO memberships(tenant_id,user_id,role) VALUES
+      ('tenant-reframe-001','u-owner-a','owner'),
+      ('tenant-reframe-001','u-editor-a','editor'),
+      ('client-a1','u-viewer-a1','client_viewer'),
+      ('agency-b','u-owner-b','owner'),
+      ('client-a2','u-legacy','owner');
+  `);
+}
+
+beforeEach(() => {
+  const db = createTestDb();
+  seed(db);
+  env = { DB: db };
+});
+
+async function call(email, method, path, body) {
+  const headers = { Origin: ORIGIN };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const req = new Request(ORIGIN + path, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const res = await handleApi(req, env, email);
+  return { status: res.status, data: await res.json() };
+}
+const ids = (r) => r.data.clients.map((c) => c.id).sort();
+
+describe("elenco clienti", () => {
+  test("owner A vede solo i clienti di A, non l'agenzia stessa", async () => {
+    expect(ids(await call("owner@a.it", "GET", "/api/clients"))).toEqual(["client-a1", "client-a2"]);
+  });
+  test("owner B vede solo i clienti di B", async () => {
+    expect(ids(await call("owner@b.it", "GET", "/api/clients"))).toEqual(["client-b1"]);
+  });
+  test("il cliente vede solo la propria azienda", async () => {
+    expect(ids(await call("viewer@a1.it", "GET", "/api/clients"))).toEqual(["client-a1"]);
+  });
+  test("utente senza ruoli non vede nulla", async () => {
+    expect(ids(await call("nobody@x.it", "GET", "/api/clients"))).toEqual([]);
+  });
+  test("una membership 'owner' diretta su un cliente non dà accesso", async () => {
+    expect(ids(await call("legacy@x.it", "GET", "/api/clients"))).toEqual([]);
+  });
+  test("utente non registrato è respinto", async () => {
+    expect((await call("sconosciuto@x.it", "GET", "/api/clients")).status).toBe(403);
+  });
+});
+
+describe("lettura e modifica della scheda", () => {
+  test("agenzia B non può leggere un cliente di A (404, nessuna informazione)", async () => {
+    const r = await call("owner@b.it", "GET", "/api/clients/client-a1");
+    expect(r.status).toBe(404);
+  });
+  test("agenzia B non può modificare un cliente di A", async () => {
+    const r = await call("owner@b.it", "PATCH", "/api/clients/client-a1", { name: "Hack" });
+    expect(r.status).toBe(404);
+    const row = env.DB.raw.query("SELECT name FROM tenants WHERE id='client-a1'").get();
+    expect(row.name).toBe("Effebiemme");
+  });
+  test("il tenant agenzia non è leggibile come cliente", async () => {
+    expect((await call("owner@a.it", "GET", "/api/clients/tenant-reframe-001")).status).toBe(404);
+  });
+  test("il cliente legge la propria scheda in sola lettura", async () => {
+    const r = await call("viewer@a1.it", "GET", "/api/clients/client-a1");
+    expect(r.status).toBe(200);
+    expect(r.data.client.permissions).toEqual({ role: "client_viewer", edit: false });
+  });
+  test("le note interne non arrivano mai al cliente", async () => {
+    await call("owner@a.it", "PATCH", "/api/clients/client-a1", { name: "Effebiemme", notes: "Pagamenti lenti", sector: "Moda" });
+    const asViewer = await call("viewer@a1.it", "GET", "/api/clients/client-a1");
+    expect(asViewer.data.client.branding.notes).toBeUndefined();
+    expect(asViewer.data.client.branding.sector).toBe("Moda");
+    const asOwner = await call("owner@a.it", "GET", "/api/clients/client-a1");
+    expect(asOwner.data.client.branding.notes).toBe("Pagamenti lenti");
+  });
+  test("il cliente non può modificare la propria scheda", async () => {
+    expect((await call("viewer@a1.it", "PATCH", "/api/clients/client-a1", { name: "Nuovo" })).status).toBe(403);
+  });
+  test("il cliente non vede un altro cliente della stessa agenzia", async () => {
+    expect((await call("viewer@a1.it", "GET", "/api/clients/client-a2")).status).toBe(404);
+  });
+  test("l'editor modifica e la modifica è registrata nell'audit", async () => {
+    const r = await call("editor@a.it", "PATCH", "/api/clients/client-a1", { name: "Effebiemme Srl", website: "effebiemme.it" });
+    expect(r.status).toBe(200);
+    expect(r.data.client.branding.website).toBe("https://effebiemme.it");
+    const audit = env.DB.raw.query("SELECT actor_id, action FROM audit_events WHERE tenant_id='client-a1'").all();
+    expect(audit).toEqual([{ actor_id: "u-editor-a", action: "update" }]);
+  });
+  test("campi non validi restituiscono l'errore per campo", async () => {
+    const r = await call("owner@a.it", "PATCH", "/api/clients/client-a1", { name: "Ok", email: "pippo" });
+    expect(r.status).toBe(400);
+    expect(r.data.fields.email).toBeDefined();
+  });
+  test("campi sconosciuti vengono ignorati", async () => {
+    await call("owner@a.it", "PATCH", "/api/clients/client-a1", { name: "Ok", agency_id: "agency-b", kind: "agency" });
+    const row = env.DB.raw.query("SELECT kind, agency_id, branding_json FROM tenants WHERE id='client-a1'").get();
+    expect(row).toEqual({ kind: "client", agency_id: "tenant-reframe-001", branding_json: "{}" });
+  });
+});
+
+describe("creazione clienti", () => {
+  test("owner A crea un cliente che finisce nella propria agenzia", async () => {
+    const r = await call("owner@a.it", "POST", "/api/clients", { name: "Nuova Srl" });
+    expect(r.status).toBe(201);
+    const row = env.DB.raw.query("SELECT kind, agency_id FROM tenants WHERE id=?").get(r.data.client.id);
+    expect(row).toEqual({ kind: "client", agency_id: "tenant-reframe-001" });
+    expect(ids(await call("owner@b.it", "GET", "/api/clients"))).toEqual(["client-b1"]);
+  });
+  test("owner A non può creare clienti dentro l'agenzia B", async () => {
+    expect((await call("owner@a.it", "POST", "/api/clients", { name: "X Srl", agency_id: "agency-b" })).status).toBe(403);
+  });
+  test("editor e cliente non possono creare clienti", async () => {
+    expect((await call("editor@a.it", "POST", "/api/clients", { name: "X Srl" })).status).toBe(403);
+    expect((await call("viewer@a1.it", "POST", "/api/clients", { name: "X Srl" })).status).toBe(403);
+  });
+});
+
+describe("sicurezza richieste", () => {
+  test("scritture da un'altra origine sono respinte", async () => {
+    const req = new Request(ORIGIN + "/api/clients/client-a1", {
+      method: "PATCH",
+      headers: { Origin: "https://evil.example", "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Hack" }),
+    });
+    expect((await handleApi(req, env, "owner@a.it")).status).toBe(403);
+  });
+  test("la sessione indica cosa può fare l'utente", async () => {
+    expect((await call("owner@a.it", "GET", "/api/session")).data.can.manageClients).toBe(true);
+    expect((await call("viewer@a1.it", "GET", "/api/session")).data.can.manageClients).toBe(false);
+  });
+});
