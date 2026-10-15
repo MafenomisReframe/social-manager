@@ -1,5 +1,6 @@
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import { handleApi, json } from "./api/handler.js";
+import { syncAll } from "./api/social.js";
 
 // Gli endpoint dati falliscono "chiusi" finché la verifica del JWT di Access non è configurata.
 // Mai fidarsi di email, tenant ID o header non firmati inviati dal browser.
@@ -47,5 +48,15 @@ export default {
       console.error("API error", e);
       return json({ error: "save_failed" }, 500);
     }
+  },
+
+  // Ogni giorno (vedi "triggers" in wrangler.jsonc): legge le statistiche di tutti gli account collegati
+  // e rinnova i token in scadenza.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      syncAll(env.DB, env)
+        .then((r) => console.log("Social sync", r))
+        .catch((e) => console.error("Social sync failed", e))
+    );
   },
 };

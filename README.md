@@ -63,8 +63,27 @@ Contiene dati reali: **non azzerare il database**. Migrazioni in `migrations/`, 
 - `0001_initial.sql` — schema iniziale (creato a mano dalla Console D1)
 - `0002_agency_scoping.sql` — `kind`, `agency_id`, tabella `reports` (applicata il 15/10/2026)
 - `0003_client_chat.sql` — `tickets.kind` per la chat continua cliente-agenzia (applicata il 15/10/2026)
+- `0004_social_connections.sql` — token social cifrati, stati OAuth, metriche giornaliere (applicata il 15/10/2026)
 
 Le nuove migrazioni vanno applicate PRIMA del deploy del codice che le usa, e devono essere additive.
+
+## Collegamento social
+
+Instagram (API con Instagram Login, account professionali): il pulsante **Collega** apre il login di Instagram, il ritorno
+arriva su `/api/oauth/instagram/callback`, il token di 60 giorni viene salvato **cifrato** e rinnovato in automatico.
+Ogni giorno alle 05:15 UTC il cron del Worker legge follower e totali a 30 giorni (copertura, interazioni, account coinvolti)
+e salva una riga in `social_metrics_daily`.
+
+Configurazione in Cloudflare (Worker `social-manager` → Impostazioni → Variabili e segreti):
+
+| Nome | Tipo | Valore |
+|---|---|---|
+| `IG_APP_ID` | variabile (in `wrangler.jsonc`) | ID app Instagram dalla dashboard Meta |
+| `IG_APP_SECRET` | **Secret** | Chiave segreta app Instagram |
+| `TOKEN_ENC_KEY` | **Secret** | Stringa casuale di almeno 32 caratteri, da non cambiare più |
+
+Nella dashboard Meta, l'URI di reindirizzamento OAuth è
+`https://social-manager.simone-87d.workers.dev/api/oauth/instagram/callback`.
 
 ## Test
 

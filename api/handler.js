@@ -2,6 +2,7 @@
 // così la logica è testabile senza token reali.
 import { validateProfile, PROFILE_KEYS } from "../src/shared/validation.js";
 import { loadContext, managedAgencies, clientAccess, visibleClientsFilter, ROLES } from "./permissions.js";
+import { PLATFORMS, canConnect, listSocial, startConnect, finishInstagramConnect, disconnect, syncAccount } from "./social.js";
 
 export const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
@@ -143,6 +144,50 @@ export async function handleApi(request, env, email) {
       audit(db, id, user.id, "create", "tenant", id),
     ]);
     return json({ client: { id, name: values.name, slug } }, 201);
+  }
+
+  const resolveAccess = async (tenantId) =>
+    clientAccess(ctx, await db.prepare(CLIENT_BY_ID_SQL).bind(tenantId).first());
+
+  // Ritorno dal login di Instagram (navigazione del browser, non fetch).
+  if (url.pathname === "/api/oauth/instagram/callback" && method === "GET") {
+    const { redirect } = await finishInstagramConnect(db, env, url, user, resolveAccess);
+    return new Response(null, { status: 302, headers: { Location: redirect, "Cache-Control": "no-store" } });
+  }
+
+  const socialMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/social(?:\/([a-z]+)(?:\/(connect|sync))?)?$/);
+  if (socialMatch) {
+    let id;
+    try {
+      id = decodeURIComponent(socialMatch[1]);
+    } catch {
+      return json({ error: "not_found" }, 404);
+    }
+    const [, , platform, action] = socialMatch;
+    const access = await resolveAccess(id);
+    if (!access) return json({ error: "not_found" }, 404);
+
+    if (!platform && method === "GET") return json({ accounts: await listSocial(db, env, id, access) });
+    if (!platform || !PLATFORMS.includes(platform)) return json({ error: "not_found" }, 404);
+    if (!canConnect(access)) return json({ error: "forbidden" }, 403);
+
+    if (action === "connect" && method === "POST") {
+      const r = await startConnect(db, env, url, user, id, platform);
+      return r.error ? json({ error: r.error }, r.status) : json({ url: r.url });
+    }
+    if (action === "sync" && method === "POST") {
+      const account = await db.prepare("SELECT * FROM social_accounts WHERE tenant_id = ? AND platform = ?").bind(id, platform).first();
+      if (!account || account.connection_status !== "connected") return json({ error: "not_connected" }, 400);
+      if (account.last_sync_at && Date.now() - Date.parse(account.last_sync_at) < 5 * 60000)
+        return json({ accounts: await listSocial(db, env, id, access), throttled: true });
+      await syncAccount(db, env, account);
+      return json({ accounts: await listSocial(db, env, id, access) });
+    }
+    if (!action && method === "DELETE") {
+      await disconnect(db, user, id, platform);
+      return json({ accounts: await listSocial(db, env, id, access) });
+    }
+    return json({ error: "not_found" }, 404);
   }
 
   const chatMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/messages$/);

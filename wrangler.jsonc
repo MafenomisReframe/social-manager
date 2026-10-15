@@ -18,6 +18,15 @@
     }
   ],
   "vars": {
-    "POLICY_AUD": "32bb6502c0890075baa29f08ccad548fe9f3b7b5eb32718c9dd0f59e4ca4c7b7"
+    "POLICY_AUD": "32bb6502c0890075baa29f08ccad548fe9f3b7b5eb32718c9dd0f59e4ca4c7b7",
+    "APP_ORIGIN": "https://social-manager.simone-87d.workers.dev",
+    "META_APP_ID": "1638911674695065",
+    // ID app Instagram (Dashboard Meta > Instagram > Configurazione API con login Instagram).
+    // I segreti IG_APP_SECRET e TOKEN_ENC_KEY si impostano come Secret in Cloudflare, MAI qui.
+    "IG_APP_ID": ""
+  },
+  "triggers": {
+    // Lettura giornaliera delle statistiche social (05:15 UTC).
+    "crons": ["15 5 * * *"]
   }
 }

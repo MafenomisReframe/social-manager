@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { navigate, clientPath, portalPath, setNavigationGuard } from "../router.jsx";
 import Chat from "../components/Chat.jsx";
+import SocialConnections from "../components/SocialConnections.jsx";
 import { ClientDashboard } from "./Portal.jsx";
 import { PROFILE_FIELDS, validateProfile } from "../shared/validation.js";
 
@@ -165,6 +166,8 @@ export default function ClientDetail({ id, tab, onSaved }) {
         ))}
       </nav>
 
+      {activeTab === "social" && <SocialConnections clientId={id} />}
+
       {isFormTab && (
         <form className="profile-form" onSubmit={save} noValidate>
           {activeTab === "anagrafica" && (
@@ -189,8 +192,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
           {activeTab === "social" && (
             <>
               <p className="wide demo-note">
-                Qui salvi i riferimenti dei profili. Il collegamento vero (OAuth) per pubblicare e leggere le
-                statistiche arriverà nella fase 6: per ora nessun account è collegato.
+                Riferimenti dei profili (facoltativi): servono come promemoria anche per i social non ancora collegati.
               </p>
               {PROFILE_FIELDS.filter((f) => f.group === "social").map(renderField)}
             </>

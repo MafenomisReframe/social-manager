@@ -30,7 +30,7 @@ class Statement {
 export function createTestDb() {
   const db = new Database(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
-  for (const file of ["0001_initial.sql", "0002_agency_scoping.sql", "0003_client_chat.sql"]) {
+  for (const file of ["0001_initial.sql", "0002_agency_scoping.sql", "0003_client_chat.sql", "0004_social_connections.sql"]) {
     db.exec(readFileSync(new URL("../migrations/" + file, import.meta.url), "utf8"));
   }
   return {

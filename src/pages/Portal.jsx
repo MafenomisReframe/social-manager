@@ -131,15 +131,55 @@ export default function Portal({ id, tab, agencyView }) {
   );
 }
 
+// Converte lo storico giornaliero salvato nel database nei numeri della scheda.
+function realData(account) {
+  if (!account || account.status !== "connected" || !account.latest) return null;
+  const h = account.history.filter((d) => d.followers != null);
+  const latest = account.latest;
+  const monthAgo = h.find((d) => Date.parse(d.day) >= Date.parse(latest.day) - 30 * 86400000) || h[0];
+  const delta =
+    monthAgo && monthAgo !== latest && monthAgo.followers
+      ? ((latest.followers - monthAgo.followers) / monthAgo.followers) * 100
+      : null;
+  const rate =
+    latest.reach_30d && latest.interactions_30d != null ? (latest.interactions_30d / latest.reach_30d) * 100 : null;
+  return {
+    followers: latest.followers,
+    delta: delta == null ? null : Math.round(delta * 10) / 10,
+    trend: h.slice(-14).map((d) => d.followers),
+    reach: latest.reach_30d,
+    interactions: latest.interactions_30d,
+    rate: rate == null ? null : Math.round(rate * 10) / 10,
+    lastSync: account.last_sync_at,
+  };
+}
+
+function useSocial(clientId) {
+  const [accounts, setAccounts] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .listSocial(clientId)
+      .then(({ accounts }) => alive && setAccounts(accounts))
+      .catch(() => alive && setAccounts([]));
+    return () => {
+      alive = false;
+    };
+  }, [clientId]);
+  return accounts;
+}
+
 function Overview({ client, demo }) {
-  const connected = demo ? 4 : 0;
+  const accounts = useSocial(client.id);
+  const byPlatform = Object.fromEntries((accounts || []).map((a) => [a.platform, a]));
+  const connected = demo ? 4 : (accounts || []).filter((a) => a.status === "connected").length;
   return (
     <>
       <div className="portal-kpis">
         <article>
           <span>Account collegati</span>
           <strong>
-            {connected}
+            {accounts || demo ? connected : "…"}
             <small>/4</small>
           </strong>
         </article>
@@ -165,22 +205,49 @@ function Overview({ client, demo }) {
       </div>
 
       <div className="platform-grid">
-        {PLATFORMS.map((p) => (
-          <PlatformCard key={p.key} platform={p} handle={client.branding?.[p.key]} data={demo ? SAMPLE[p.key] : null} />
-        ))}
+        {PLATFORMS.map((p) => {
+          const account = byPlatform[p.key];
+          return (
+            <PlatformCard
+              key={p.key}
+              platform={p}
+              clientId={client.id}
+              account={demo ? null : account}
+              handle={(demo ? null : account?.handle) || client.branding?.[p.key]}
+              data={demo ? SAMPLE[p.key] : realData(account)}
+              demo={demo}
+            />
+          );
+        })}
       </div>
-      {!demo && (
-        <p className="demo-note">
-          Ogni piattaforma è analizzata separatamente: follower e copertura di social diversi non vengono sommati, perché
-          le stesse persone possono seguirti su più canali.
-        </p>
-      )}
+      <p className="demo-note">
+        Ogni piattaforma è analizzata separatamente: follower e copertura di social diversi non vengono sommati, perché le
+        stesse persone possono seguirti su più canali. I dati si aggiornano automaticamente ogni giorno.
+      </p>
     </>
   );
 }
 
-function PlatformCard({ platform, handle, data }) {
-  const max = data ? Math.max(...data.trend) : 1;
+const num = (v) => (v == null ? "—" : fmt(v));
+
+function PlatformCard({ platform, clientId, account, handle, data, demo }) {
+  const [busy, setBusy] = useState(false);
+  const trend = data?.trend || [];
+  const max = Math.max(1, ...trend);
+  const connected = demo || account?.status === "connected";
+  const expired = account?.status === "expired";
+
+  async function connect() {
+    setBusy(true);
+    try {
+      const { url } = await api.connectSocial(clientId, platform.key);
+      window.location.href = url;
+    } catch (err) {
+      alert(err.message);
+      setBusy(false);
+    }
+  }
+
   return (
     <article className="platform" style={{ "--accent": platform.color }}>
       <div className="platform-head">
@@ -189,7 +256,9 @@ function PlatformCard({ platform, handle, data }) {
           <h4>{platform.name}</h4>
           <small>{handle || "Profilo non indicato"}</small>
         </div>
-        <span className={"status " + (data ? "on" : "off")}>{data ? "Collegato" : "Non collegato"}</span>
+        <span className={"status " + (connected ? "on" : "off")}>
+          {connected ? "Collegato" : expired ? "Da ricollegare" : "Non collegato"}
+        </span>
       </div>
 
       {data ? (
@@ -197,34 +266,55 @@ function PlatformCard({ platform, handle, data }) {
           <div className="platform-main">
             <div>
               <span>Follower</span>
-              <strong>{fmt(data.followers)}</strong>
+              <strong>{num(data.followers)}</strong>
             </div>
-            <em className={data.delta >= 0 ? "up" : "down"}>
-              {data.delta >= 0 ? "▲" : "▼"} {Math.abs(data.delta).toLocaleString("it-IT")}%
-            </em>
+            {data.delta != null && (
+              <em className={data.delta >= 0 ? "up" : "down"} title="Variazione rispetto a circa 30 giorni fa">
+                {data.delta >= 0 ? "▲" : "▼"} {Math.abs(data.delta).toLocaleString("it-IT")}%
+              </em>
+            )}
           </div>
-          <div className="trend" aria-label="Andamento copertura nelle ultime 7 settimane">
-            {data.trend.map((v, i) => (
-              <i key={i} style={{ height: `${Math.round((v / max) * 100)}%` }} />
-            ))}
-          </div>
+          {trend.length >= 2 ? (
+            <div className="trend" aria-label="Andamento dei follower">
+              {trend.map((v, i) => (
+                <i key={i} style={{ height: `${Math.max(6, Math.round((v / max) * 100))}%` }} />
+              ))}
+            </div>
+          ) : (
+            <p className="platform-empty small">Il grafico si costruisce giorno dopo giorno dalla data di collegamento.</p>
+          )}
           <dl className="platform-stats">
             <div>
               <dt>Copertura</dt>
-              <dd>{fmt(data.reach)}</dd>
+              <dd>{num(data.reach)}</dd>
             </div>
             <div>
               <dt>Interazioni</dt>
-              <dd>{fmt(data.interactions)}</dd>
+              <dd>{num(data.interactions)}</dd>
             </div>
             <div>
               <dt>Engagement</dt>
-              <dd>{data.rate.toLocaleString("it-IT")}%</dd>
+              <dd>{data.rate == null ? "—" : data.rate.toLocaleString("it-IT") + "%"}</dd>
             </div>
           </dl>
+          {data.lastSync && (
+            <small className="sync-info">
+              Aggiornato il{" "}
+              {new Date(data.lastSync).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </small>
+          )}
         </>
+      ) : connected ? (
+        <p className="platform-empty">Collegato: i primi dati arriveranno con il prossimo aggiornamento.</p>
       ) : (
-        <p className="platform-empty">I dati compariranno qui automaticamente quando l'account sarà collegato.</p>
+        <>
+          <p className="platform-empty">I dati compariranno qui automaticamente quando l'account sarà collegato.</p>
+          {account?.available && (
+            <button type="button" className="connect-btn" disabled={busy} onClick={connect}>
+              {busy ? "Apertura…" : expired ? `Ricollega ${platform.name}` : `Collega ${platform.name}`}
+            </button>
+          )}
+        </>
       )}
     </article>
   );

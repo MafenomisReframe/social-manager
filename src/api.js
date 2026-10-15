@@ -12,6 +12,9 @@ const MESSAGES = {
   invalid_name: "Il nome deve avere tra 2 e 120 caratteri.",
   validation: "Alcuni campi non sono validi: controlla i campi evidenziati.",
   save_failed: "Salvataggio non riuscito, riprova tra poco.",
+  platform_not_configured: "Il collegamento con questa piattaforma non è ancora stato configurato.",
+  platform_not_supported: "Collegamento non ancora disponibile per questa piattaforma.",
+  not_connected: "Account non collegato.",
   invalid_message: "Il messaggio è vuoto o troppo lungo (massimo 4000 caratteri).",
 };
 
@@ -55,6 +58,13 @@ export const api = {
   createClient: (name) => request("/api/clients", { method: "POST", body: { name } }),
   getClient: (id) => request("/api/clients/" + encodeURIComponent(id)),
   updateClient: (id, data) => request("/api/clients/" + encodeURIComponent(id), { method: "PATCH", body: data }),
+  listSocial: (id) => request("/api/clients/" + encodeURIComponent(id) + "/social"),
+  connectSocial: (id, platform) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/connect", { method: "POST", body: {} }),
+  syncSocial: (id, platform) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/sync", { method: "POST", body: {} }),
+  disconnectSocial: (id, platform) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform, { method: "DELETE" }),
   listMessages: (id, after) =>
     request("/api/clients/" + encodeURIComponent(id) + "/messages" + (after ? "?after=" + encodeURIComponent(after) : "")),
   sendMessage: (id, body) =>
