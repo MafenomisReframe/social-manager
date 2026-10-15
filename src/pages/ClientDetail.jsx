@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { navigate, clientPath, portalPath, setNavigationGuard } from "../router.jsx";
 import Chat from "../components/Chat.jsx";
+import { ClientDashboard } from "./Portal.jsx";
 import { PROFILE_FIELDS, validateProfile } from "../shared/validation.js";
 
 const TABS = [
-  { slug: "", label: "Anagrafica" },
+  { slug: "", label: "Dashboard" },
+  { slug: "anagrafica", label: "Anagrafica" },
   { slug: "social", label: "Profili social" },
   { slug: "chat", label: "Chat" },
   { slug: "brand", label: "Brand" },
@@ -28,6 +30,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [status, setStatus] = useState({ type: "idle", text: "" });
   const [canEdit, setCanEdit] = useState(false);
+  const [client, setClient] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,6 +39,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
       .then(({ client }) => {
         if (!alive) return;
         const f = pickForm(client);
+        setClient(client);
         setCanEdit(client.permissions?.edit === true);
         setSaved(f);
         setForm(f);
@@ -81,6 +85,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
     try {
       const { client } = await api.updateClient(id, form);
       const f = pickForm(client);
+      setClient(client);
       setSaved(f);
       setForm(f);
       setFieldErrors({});
@@ -139,7 +144,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
       </section>
     );
 
-  const isFormTab = activeTab === "" || activeTab === "social";
+  const isFormTab = activeTab === "anagrafica" || activeTab === "social";
 
   return (
     <section className="panel client-detail-page">
@@ -162,7 +167,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
 
       {isFormTab && (
         <form className="profile-form" onSubmit={save} noValidate>
-          {activeTab === "" && (
+          {activeTab === "anagrafica" && (
             <>
               <label htmlFor="f-name">
                 Nome azienda
@@ -219,6 +224,8 @@ export default function ClientDetail({ id, tab, onSaved }) {
           text="Contenuti programmati, stati di lavorazione e responsabili, solo per questo cliente."
         />
       )}
+      {activeTab === "" && client && <ClientDashboard client={client} />}
+
       {activeTab === "chat" && (
         <div className="coming-soon">
           <p>Conversazione con il cliente: lui la vede, identica, nella sua area riservata.</p>

@@ -283,3 +283,39 @@ function Reports({ demo, agencyName }) {
     </section>
   );
 }
+
+// Stessa dashboard dell'area cliente, mostrata dentro la scheda cliente dell'agenzia.
+const INNER_TABS = [
+  { key: "overview", label: "Panoramica" },
+  { key: "contents", label: "Contenuti" },
+  { key: "reports", label: "Report" },
+];
+
+export function ClientDashboard({ client }) {
+  const [inner, setInner] = useState("overview");
+  const [sample, setSample] = useState(false);
+  const agencyName = client.agency_name || "il team";
+  return (
+    <div className="client-dashboard">
+      <div className="dash-toolbar">
+        <div className="dash-tabs">
+          {INNER_TABS.map((t) => (
+            <button key={t.key} type="button" className={t.key === inner ? "active" : ""} onClick={() => setInner(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={sample} onChange={(e) => setSample(e.target.checked)} />
+          Dati di esempio
+        </label>
+        <button type="button" className="ghost" onClick={() => navigate(portalPath(client.id))}>
+          Vedi come il cliente →
+        </button>
+      </div>
+      {inner === "overview" && <Overview client={client} demo={sample} />}
+      {inner === "contents" && <Contents demo={sample} />}
+      {inner === "reports" && <Reports demo={sample} agencyName={agencyName} />}
+    </div>
+  );
+}
