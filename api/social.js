@@ -127,6 +127,15 @@ const UPSERT_ACCOUNT =
   "connection_status='connected', access_token_enc=excluded.access_token_enc, token_expires_at=excluded.token_expires_at, " +
   "scopes=excluded.scopes, connected_by=excluded.connected_by, connected_at=excluded.connected_at, last_error=NULL, api=excluded.api";
 
+// Se il cliente viene ricollegato a un account DIVERSO, lo storico del precedente va cancellato:
+// altrimenti grafici e confronti mescolerebbero i dati di due aziende.
+const dropForeignHistory = (db, tenantId, platform, externalId) =>
+  db
+    .prepare(
+      "DELETE FROM social_metrics_daily WHERE account_id IN (SELECT id FROM social_accounts WHERE tenant_id = ? AND platform = ? AND COALESCE(external_account_id,'') <> ?)"
+    )
+    .bind(tenantId, platform, String(externalId));
+
 const auditStmt = (db, tenantId, userId, action, what) =>
   db
     .prepare("INSERT INTO audit_events(id,tenant_id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?,?)")
@@ -195,6 +204,7 @@ async function savePage(db, env, user, tenantId, page) {
   const tokenEnc = await encryptToken(env.TOKEN_ENC_KEY, page.token);
   const now = nowIso();
   const stmts = [
+    dropForeignHistory(db, tenantId, "facebook", page.id),
     db
       .prepare(UPSERT_ACCOUNT)
       .bind(crypto.randomUUID(), tenantId, "facebook", page.name, page.id, tokenEnc, null, "", user.id, now, "facebook_login"),
@@ -202,6 +212,7 @@ async function savePage(db, env, user, tenantId, page) {
   ];
   if (page.ig) {
     stmts.push(
+      dropForeignHistory(db, tenantId, "instagram", page.ig.id),
       db
         .prepare(UPSERT_ACCOUNT)
         .bind(crypto.randomUUID(), tenantId, "instagram", page.ig.username ? "@" + page.ig.username : "", page.ig.id, tokenEnc, null, "", user.id, now, "facebook_login"),
@@ -234,6 +245,7 @@ export async function finishInstagramConnect(db, env, url, user, resolveAccess) 
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
     const extId = String(profile.user_id || profile.id || "");
     const handle = profile.username ? "@" + profile.username : "";
+    await dropForeignHistory(db, row.tenant_id, "instagram", extId).run();
     await db
       .prepare(
         "INSERT INTO social_accounts(id, tenant_id, platform, handle, external_account_id, connection_status, access_token_enc, token_expires_at, scopes, connected_by, connected_at, last_error) " +

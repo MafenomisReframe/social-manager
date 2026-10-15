@@ -149,4 +149,21 @@ describe("accesso tramite Facebook", () => {
     await login("facebook");
     expect(env.DB.raw.query("SELECT connection_status FROM social_accounts WHERE platform='facebook'").get().connection_status).toBe("expired");
   });
+
+  test("ricollegare il cliente a un'altra pagina cancella lo storico della precedente", async () => {
+    mockGraph({ pages: [PAGES[0]] });
+    await login("facebook");
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM social_metrics_daily").get().n).toBe(2);
+    mockGraph({ pages: [{ id: "p9", name: "Nuova", access_token: "PAGE-TOKEN-1" }] });
+    globalThis.fetch = ((orig) => async (input) => {
+      const u = new URL(typeof input === "string" ? input : input.url);
+      if (u.pathname.endsWith("/p9")) return Response.json({ name: "Nuova", followers_count: 10 });
+      if (u.pathname.endsWith("/p9/insights")) return Response.json({ data: [] });
+      return orig(input);
+    })(globalThis.fetch);
+    await login("facebook");
+    const rows = env.DB.raw.query("SELECT s.platform, m.followers FROM social_metrics_daily m JOIN social_accounts s ON s.id=m.account_id ORDER BY s.platform").all();
+    // Facebook: solo i dati della nuova pagina. Instagram (vecchio, non ricollegato) resta finché non cambia.
+    expect(rows.find((r) => r.platform === "facebook").followers).toBe(10);
+  });
 });

@@ -120,7 +120,7 @@ export default function App() {
       <main>
         <Header section={section} title={title} clients={clients} currentClientId={route.clientId} />
         {content}
-        <footer>Social Manager v0.4 · Nessun account social collegato · I contenuti marcati “Demo” non sono reali</footer>
+        <footer>Social Manager v0.6 · I contenuti marcati “Demo” non sono reali</footer>
       </main>
     </div>
   );
