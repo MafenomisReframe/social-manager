@@ -1,4 +1,6 @@
--- Social Manager: initial multi-tenant schema (not applied to D1 yet)
+-- Social Manager: schema multi-tenant di riferimento.
+-- Applicato a mano dalla Console D1. Verifica del 15/10/2026: tutte le tabelle esistono
+-- tranne "reports", non ancora creata in produzione.
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS tenants (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
