@@ -58,6 +58,28 @@ export default {
           return json({client:{id,name,slug}},201);
         }catch(e){console.error("Create client failed",e);return json({error:"save_failed"},500);}
       }
+      if(url.pathname.startsWith("/api/clients/") && request.method==="GET"){
+        if(!agencyOwner)return json({error:"forbidden"},403);
+        const id=decodeURIComponent(url.pathname.slice("/api/clients/".length));
+        const c=await env.DB.prepare("SELECT id,name,slug,branding_json,created_at FROM tenants WHERE id=? AND EXISTS(SELECT 1 FROM memberships WHERE tenant_id=tenants.id AND user_id=?)").bind(id,user.id).first();
+        if(!c)return json({error:"not_found"},404);
+        return json({client:{...c,branding:JSON.parse(c.branding_json||"{}")}});
+      }
+      if(url.pathname.startsWith("/api/clients/") && request.method==="PATCH"){
+        if(!agencyOwner)return json({error:"forbidden"},403);
+        if(request.headers.get("Origin")!==url.origin)return json({error:"invalid_origin"},403);
+        const id=decodeURIComponent(url.pathname.slice("/api/clients/".length));
+        const exists=await env.DB.prepare("SELECT id,branding_json FROM tenants WHERE id=? AND EXISTS(SELECT 1 FROM memberships WHERE tenant_id=tenants.id AND user_id=?)").bind(id,user.id).first();
+        if(!exists)return json({error:"not_found"},404);
+        let body;try{body=await request.json()}catch{return json({error:"invalid_json"},400)}
+        const name=typeof body?.name==="string"?body.name.trim():"";
+        if(name.length<2||name.length>120)return json({error:"invalid_name"},400);
+        const allowed=["sector","website","email","phone","instagram","facebook","linkedin","tiktok","notes"];
+        const details={};for(const key of allowed){const val=body?.[key];if(val!==undefined){if(typeof val!=="string"||val.length>2000)return json({error:"invalid_"+key},400);details[key]=val.trim()}}
+        const old=JSON.parse(exists.branding_json||"{}");
+        await env.DB.prepare("UPDATE tenants SET name=?,branding_json=? WHERE id=?").bind(name,JSON.stringify({...old,...details}),id).run();
+        return json({ok:true});
+      }
       return json({error:"not_found"},404);
     }
     return env.ASSETS.fetch(request);
