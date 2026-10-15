@@ -152,3 +152,39 @@ describe("sicurezza richieste", () => {
     expect((await call("viewer@a1.it", "GET", "/api/session")).data.can.manageClients).toBe(false);
   });
 });
+
+describe("chat cliente-agenzia", () => {
+  test("agenzia e cliente si scrivono nella stessa conversazione", async () => {
+    const a = await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "Ciao, ecco il piano" });
+    expect(a.status).toBe(201);
+    const c = await call("viewer@a1.it", "POST", "/api/clients/client-a1/messages", { body: "Perfetto, grazie!" });
+    expect(c.status).toBe(201);
+    const list = (await call("viewer@a1.it", "GET", "/api/clients/client-a1/messages")).data.messages;
+    expect(list.map((m) => [m.body, m.from, m.mine])).toEqual([
+      ["Ciao, ecco il piano", "agency", false],
+      ["Perfetto, grazie!", "client", true],
+    ]);
+    // Una sola conversazione per cliente.
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM tickets WHERE tenant_id='client-a1' AND kind='chat'").get().n).toBe(1);
+  });
+  test("si possono chiedere solo i messaggi nuovi", async () => {
+    const first = await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "Uno" });
+    await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "Due" });
+    const after = first.data.message.seq;
+    const list = (await call("owner@a.it", "GET", "/api/clients/client-a1/messages?after=" + after)).data.messages;
+    expect(list.map((m) => m.body)).toEqual(["Due"]);
+  });
+  test("altre agenzie e altri clienti non leggono né scrivono la chat", async () => {
+    await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "Riservato" });
+    expect((await call("owner@b.it", "GET", "/api/clients/client-a1/messages")).status).toBe(404);
+    expect((await call("owner@b.it", "POST", "/api/clients/client-a1/messages", { body: "x" })).status).toBe(404);
+    expect((await call("viewer@a1.it", "GET", "/api/clients/client-a2/messages")).status).toBe(404);
+  });
+  test("messaggi vuoti o troppo lunghi sono rifiutati", async () => {
+    expect((await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "   " })).status).toBe(400);
+    expect((await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "a".repeat(4001) })).status).toBe(400);
+  });
+  test("la scheda indica l'agenzia che segue il cliente", async () => {
+    expect((await call("viewer@a1.it", "GET", "/api/clients/client-a1")).data.client.agency_name).toBe("Re-Frame");
+  });
+});

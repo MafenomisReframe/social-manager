@@ -7,6 +7,35 @@ export const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 
 const TENANT_COLS = "id,name,slug,kind,agency_id,branding_json,created_at";
+const CLIENT_BY_ID_SQL =
+  "SELECT t.id,t.name,t.slug,t.kind,t.agency_id,t.branding_json,t.created_at,a.name AS agency_name " +
+  "FROM tenants t LEFT JOIN tenants a ON a.id = t.agency_id WHERE t.id = ?";
+const MAX_MESSAGE = 4000;
+
+// Messaggi della chat del cliente; "from" dice se l'autore è dell'agenzia o del cliente.
+async function listMessages(db, client, userId, after) {
+  const rows = (
+    await db
+      .prepare(
+        "SELECT tm.rowid AS seq, tm.id, tm.body, tm.created_at, tm.author_id, u.display_name, u.email, " +
+          "EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = tm.author_id AND m.tenant_id = ? AND m.role <> 'client_viewer') AS from_agency " +
+          "FROM ticket_messages tm JOIN tickets t ON t.id = tm.ticket_id JOIN users u ON u.id = tm.author_id " +
+          "WHERE tm.tenant_id = ? AND t.tenant_id = ? AND t.kind = 'chat' AND tm.rowid > ? " +
+          "ORDER BY tm.rowid LIMIT 500"
+      )
+      .bind(client.agency_id || "", client.id, client.id, after)
+      .all()
+  ).results;
+  return rows.map((r) => ({
+    id: r.id,
+    seq: r.seq,
+    body: r.body,
+    created_at: r.created_at,
+    author: r.display_name || r.email.split("@")[0],
+    from: r.from_agency ? "agency" : "client",
+    mine: r.author_id === userId,
+  }));
+}
 
 function parseBranding(raw) {
   try {
@@ -28,6 +57,7 @@ function clientView(row, access, fullBranding = parseBranding(row.branding_json)
     name: row.name,
     slug: row.slug,
     created_at: row.created_at,
+    agency_name: row.agency_name || "",
     branding,
     permissions: { role: access.role, edit: access.edit },
   };
@@ -115,6 +145,68 @@ export async function handleApi(request, env, email) {
     return json({ client: { id, name: values.name, slug } }, 201);
   }
 
+  const chatMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/messages$/);
+  if (chatMatch) {
+    let id;
+    try {
+      id = decodeURIComponent(chatMatch[1]);
+    } catch {
+      return json({ error: "not_found" }, 404);
+    }
+    const client = await db.prepare(CLIENT_BY_ID_SQL).bind(id).first();
+    const access = clientAccess(ctx, client);
+    if (!access) return json({ error: "not_found" }, 404);
+
+    if (method === "GET") {
+      const after = Math.max(0, parseInt(url.searchParams.get("after") || "0", 10) || 0);
+      return json({ messages: await listMessages(db, client, user.id, after) });
+    }
+
+    if (method === "POST") {
+      // Anche il cliente in sola lettura può scrivere in chat.
+      const { body, error } = await readJson(request);
+      if (error) return error;
+      const text = typeof body?.body === "string" ? body.body.trim() : "";
+      if (!text || text.length > MAX_MESSAGE) return json({ error: "invalid_message" }, 400);
+
+      let ticket = await db.prepare("SELECT id FROM tickets WHERE tenant_id = ? AND kind = 'chat'").bind(id).first();
+      const statements = [];
+      if (!ticket) {
+        ticket = { id: crypto.randomUUID() };
+        statements.push(
+          db
+            .prepare("INSERT INTO tickets(id,tenant_id,subject,status,created_by,kind) VALUES(?,?,'Chat','open',?,'chat')")
+            .bind(ticket.id, id, user.id)
+        );
+      }
+      const messageId = crypto.randomUUID();
+      const now = new Date().toISOString().replace("T", " ").replace("Z", "");
+      statements.push(
+        db
+          .prepare("INSERT INTO ticket_messages(id,tenant_id,ticket_id,author_id,body,created_at) VALUES(?,?,?,?,?,?)")
+          .bind(messageId, id, ticket.id, user.id, text, now)
+      );
+      await db.batch(statements);
+      // seq = posizione progressiva del messaggio: il browser chiede solo quelli successivi.
+      const saved = await db.prepare("SELECT rowid AS seq FROM ticket_messages WHERE id = ?").bind(messageId).first();
+      return json(
+        {
+          message: {
+            id: messageId,
+            seq: saved.seq,
+            body: text,
+            created_at: now,
+            author: user.display_name || user.email.split("@")[0],
+            from: access.role === "client_viewer" ? "client" : "agency",
+            mine: true,
+          },
+        },
+        201
+      );
+    }
+    return json({ error: "not_found" }, 404);
+  }
+
   const match = url.pathname.match(/^\/api\/clients\/([^/]+)$/);
   if (match) {
     let id;
@@ -123,7 +215,7 @@ export async function handleApi(request, env, email) {
     } catch {
       return json({ error: "not_found" }, 404);
     }
-    const row = await db.prepare(`SELECT ${TENANT_COLS} FROM tenants WHERE id = ?`).bind(id).first();
+    const row = await db.prepare(CLIENT_BY_ID_SQL).bind(id).first();
     const access = clientAccess(ctx, row);
     // Stessa risposta se il cliente non esiste o appartiene ad altri: non si rivela nulla.
     if (!access) return json({ error: "not_found" }, 404);

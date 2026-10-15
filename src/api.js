@@ -12,6 +12,7 @@ const MESSAGES = {
   invalid_name: "Il nome deve avere tra 2 e 120 caratteri.",
   validation: "Alcuni campi non sono validi: controlla i campi evidenziati.",
   save_failed: "Salvataggio non riuscito, riprova tra poco.",
+  invalid_message: "Il messaggio è vuoto o troppo lungo (massimo 4000 caratteri).",
 };
 
 export class ApiError extends Error {
@@ -54,4 +55,8 @@ export const api = {
   createClient: (name) => request("/api/clients", { method: "POST", body: { name } }),
   getClient: (id) => request("/api/clients/" + encodeURIComponent(id)),
   updateClient: (id, data) => request("/api/clients/" + encodeURIComponent(id), { method: "PATCH", body: data }),
+  listMessages: (id, after) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/messages" + (after ? "?after=" + encodeURIComponent(after) : "")),
+  sendMessage: (id, body) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/messages", { method: "POST", body: { body } }),
 };

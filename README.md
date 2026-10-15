@@ -41,13 +41,18 @@ npm run dev        # solo frontend
 npm run build      # genera dist/ usata dal Worker
 ```
 
+## Due lati della stessa app
+
+- **Agenzia** (`/clienti/<id>`): anagrafica, note interne, profili social, chat, lavorazione. In testa alla scheda c'è il link fisso dell'area cliente, da copiare e mandare.
+- **Area cliente** (`/portale/<id>`): dashboard per piattaforma, contenuti, report e chat. Niente anagrafica né note interne. Un utente cliente viene sempre portato qui. L'agenzia la apre in anteprima e può attivare "dati di esempio", sempre etichettati.
+
 ## Ruoli e permessi
 
 | Ruolo | Dove | Può fare |
 |---|---|---|
 | owner, agency_admin | tenant agenzia | vede e modifica tutti i clienti dell'agenzia, crea clienti |
 | editor | tenant agenzia | vede e modifica i clienti dell'agenzia, non ne crea |
-| client_viewer | tenant cliente | vede solo la propria azienda, sola lettura, senza note interne |
+| client_viewer | tenant cliente | vede solo la propria area, sola lettura, senza note interne; può scrivere in chat |
 
 Ogni cliente appartiene a un'agenzia tramite `tenants.agency_id`; `tenants.kind` distingue `agency` e `client`. Un'agenzia non vede mai i clienti di un'altra (verificato dai test).
 
@@ -57,6 +62,7 @@ Contiene dati reali: **non azzerare il database**. Migrazioni in `migrations/`, 
 
 - `0001_initial.sql` — schema iniziale (creato a mano dalla Console D1)
 - `0002_agency_scoping.sql` — `kind`, `agency_id`, tabella `reports` (applicata il 15/10/2026)
+- `0003_client_chat.sql` — `tickets.kind` per la chat continua cliente-agenzia (applicata il 15/10/2026)
 
 Le nuove migrazioni vanno applicate PRIMA del deploy del codice che le usa, e devono essere additive.
 

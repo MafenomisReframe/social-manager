@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
-import { navigate, clientPath, setNavigationGuard } from "../router.jsx";
+import { navigate, clientPath, portalPath, setNavigationGuard } from "../router.jsx";
+import Chat from "../components/Chat.jsx";
 import { PROFILE_FIELDS, validateProfile } from "../shared/validation.js";
 
 const TABS = [
   { slug: "", label: "Anagrafica" },
   { slug: "social", label: "Profili social" },
+  { slug: "chat", label: "Chat" },
   { slug: "brand", label: "Brand" },
   { slug: "calendario", label: "Calendario" },
-  { slug: "segnalazioni", label: "Segnalazioni" },
 ];
 
 const EMPTY = Object.fromEntries([["name", ""], ...PROFILE_FIELDS.map((f) => [f.key, ""])]);
@@ -143,6 +144,7 @@ export default function ClientDetail({ id, tab, onSaved }) {
   return (
     <section className="panel client-detail-page">
       {header}
+      <PortalLink id={id} />
 
       <nav className="tabs" aria-label="Sezioni della scheda cliente">
         {TABS.map((t) => (
@@ -217,12 +219,11 @@ export default function ClientDetail({ id, tab, onSaved }) {
           text="Contenuti programmati, stati di lavorazione e responsabili, solo per questo cliente."
         />
       )}
-      {activeTab === "segnalazioni" && (
-        <ComingSoon
-          title="Segnalazioni"
-          phase="fase 4"
-          text="Chat tra cliente e team con allegati, stati aperta / in lavorazione / risolta e collegamento ai post."
-        />
+      {activeTab === "chat" && (
+        <div className="coming-soon">
+          <p>Conversazione con il cliente: lui la vede, identica, nella sua area riservata.</p>
+          <Chat clientId={id} viewer="agency" />
+        </div>
       )}
     </section>
   );
@@ -234,6 +235,37 @@ function ComingSoon({ title, phase, text }) {
       <h3>{title}</h3>
       <p>{text}</p>
       <p className="demo-note">Sezione in arrivo con la {phase} della roadmap. Nessun dato dimostrativo mostrato qui.</p>
+    </div>
+  );
+}
+
+// Link fisso dell'area riservata: si copia e si manda al cliente.
+function PortalLink({ id }) {
+  const [copied, setCopied] = useState(false);
+  const url = window.location.origin + portalPath(id);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copia il link:", url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <div className="portal-link">
+      <div>
+        <small>LINK AREA CLIENTE</small>
+        <code>{url}</code>
+      </div>
+      <div className="portal-link-actions">
+        <button type="button" onClick={copy}>{copied ? "Copiato ✓" : "Copia link"}</button>
+        <button type="button" className="ghost" onClick={() => navigate(portalPath(id))}>
+          Anteprima →
+        </button>
+      </div>
+      <p>Il cliente potrà aprirlo dopo essere stato invitato con la sua email (prossimo passo: inviti).</p>
     </div>
   );
 }

@@ -27,11 +27,13 @@ export function parsePath(pathname) {
   });
   const slug = parts[0] || "";
   const page = PAGES.find((p) => p.slug === slug) || null;
+  const withClient = slug === "clienti" || slug === "portale";
   return {
     slug,
     page,
-    clientId: slug === "clienti" ? parts[1] || null : null,
-    tab: slug === "clienti" ? parts[2] || null : null,
+    portal: slug === "portale",
+    clientId: withClient ? parts[1] || null : null,
+    tab: withClient ? parts[2] || null : null,
   };
 }
 
@@ -51,6 +53,11 @@ export function navigate(path) {
 
 export function clientPath(id, tab) {
   return "/clienti/" + encodeURIComponent(id) + (tab ? "/" + tab : "");
+}
+
+// Indirizzo dell'area riservata del cliente: è il link fisso da mandargli.
+export function portalPath(id, tab) {
+  return "/portale/" + encodeURIComponent(id) + (tab ? "/" + tab : "");
 }
 
 export function useRoute() {
