@@ -16,6 +16,7 @@ const MESSAGES = {
   platform_not_supported: "Collegamento non ancora disponibile per questa piattaforma.",
   not_connected: "Account non collegato.",
   selection_expired: "La scelta è scaduta: premi di nuovo Collega.",
+  confirm_name_mismatch: "Il nome scritto non corrisponde: cliente NON eliminato.",
   invalid_message: "Il messaggio è vuoto o troppo lungo (massimo 4000 caratteri).",
 };
 
@@ -59,6 +60,8 @@ export const api = {
   createClient: (name) => request("/api/clients", { method: "POST", body: { name } }),
   getClient: (id) => request("/api/clients/" + encodeURIComponent(id)),
   updateClient: (id, data) => request("/api/clients/" + encodeURIComponent(id), { method: "PATCH", body: data }),
+  deleteClient: (id, confirmName) =>
+    request("/api/clients/" + encodeURIComponent(id), { method: "DELETE", body: { confirm_name: confirmName } }),
   listSocial: (id) => request("/api/clients/" + encodeURIComponent(id) + "/social"),
   connectSocial: (id, platform) =>
     request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/connect", { method: "POST", body: {} }),

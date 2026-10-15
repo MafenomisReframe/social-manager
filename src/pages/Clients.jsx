@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { navigate, clientPath } from "../router.jsx";
+import { confirmAndDeleteClient } from "../components/deleteClient.js";
 
 export default function Clients({ clients, loading, error, onChanged, canManage }) {
   const [name, setName] = useState("");
@@ -57,6 +58,17 @@ export default function Clients({ clients, loading, error, onChanged, canManage 
         <div className="grid">
           {clients.map((c) => (
             <article className="tile" key={c.id}>
+              {canManage && (
+                <button
+                  type="button"
+                  className="tile-delete"
+                  title={`Elimina ${c.name}`}
+                  aria-label={`Elimina ${c.name}`}
+                  onClick={async () => (await confirmAndDeleteClient(c)) && onChanged()}
+                >
+                  ×
+                </button>
+              )}
               <div className="icon">{c.name.slice(0, 2).toUpperCase()}</div>
               <h3>{c.name}</h3>
               <small>{c.sector || "Settore non indicato"}</small>

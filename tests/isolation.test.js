@@ -188,3 +188,27 @@ describe("chat cliente-agenzia", () => {
     expect((await call("viewer@a1.it", "GET", "/api/clients/client-a1")).data.client.agency_name).toBe("Re-Frame");
   });
 });
+
+describe("eliminazione cliente", () => {
+  test("il proprietario elimina il cliente e tutti i suoi dati", async () => {
+    await call("owner@a.it", "POST", "/api/clients/client-a1/messages", { body: "ciao" });
+    const r = await call("owner@a.it", "DELETE", "/api/clients/client-a1", { confirm_name: "effebiemme" });
+    expect(r.status).toBe(200);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM tenants WHERE id='client-a1'").get().n).toBe(0);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM ticket_messages").get().n).toBe(0);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM memberships WHERE tenant_id='client-a1'").get().n).toBe(0);
+    expect(env.DB.raw.query("SELECT action FROM audit_events WHERE tenant_id='tenant-reframe-001'").get().action).toBe("delete");
+    expect(ids(await call("owner@a.it", "GET", "/api/clients"))).toEqual(["client-a2"]);
+  });
+  test("senza il nome corretto non elimina nulla", async () => {
+    expect((await call("owner@a.it", "DELETE", "/api/clients/client-a1", { confirm_name: "altro" })).status).toBe(400);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM tenants WHERE id='client-a1'").get().n).toBe(1);
+  });
+  test("editor, cliente e altre agenzie non possono eliminare", async () => {
+    expect((await call("editor@a.it", "DELETE", "/api/clients/client-a1", { confirm_name: "Effebiemme" })).status).toBe(403);
+    expect((await call("viewer@a1.it", "DELETE", "/api/clients/client-a1", { confirm_name: "Effebiemme" })).status).toBe(403);
+    expect((await call("owner@b.it", "DELETE", "/api/clients/client-a1", { confirm_name: "Effebiemme" })).status).toBe(404);
+    expect((await call("owner@a.it", "DELETE", "/api/clients/tenant-reframe-001", { confirm_name: "Re-Frame" })).status).toBe(404);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM tenants").get().n).toBe(5);
+  });
+});

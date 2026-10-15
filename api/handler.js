@@ -296,6 +296,34 @@ export async function handleApi(request, env, email) {
 
     if (method === "GET") return json({ client: clientView(row, access) });
 
+    if (method === "DELETE") {
+      // Solo proprietario e amministratori dell'agenzia del cliente. Operazione irreversibile.
+      if (!managedAgencies(ctx).includes(row.agency_id)) return json({ error: "forbidden" }, 403);
+      const { body, error } = await readJson(request);
+      if (error) return error;
+      if (typeof body?.confirm_name !== "string" || body.confirm_name.trim().toLowerCase() !== row.name.trim().toLowerCase())
+        return json({ error: "confirm_name_mismatch" }, 400);
+      const del = (sql) => db.prepare(sql).bind(id);
+      await db.batch([
+        del("DELETE FROM social_metrics_daily WHERE tenant_id = ?"),
+        del("DELETE FROM content_targets WHERE tenant_id = ?"),
+        del("DELETE FROM ticket_messages WHERE tenant_id = ?"),
+        del("DELETE FROM tickets WHERE tenant_id = ?"),
+        del("DELETE FROM content_items WHERE tenant_id = ?"),
+        del("DELETE FROM social_accounts WHERE tenant_id = ?"),
+        del("DELETE FROM oauth_states WHERE tenant_id = ?"),
+        del("DELETE FROM oauth_pending WHERE tenant_id = ?"),
+        del("DELETE FROM brand_profiles WHERE tenant_id = ?"),
+        del("DELETE FROM reports WHERE tenant_id = ?"),
+        del("DELETE FROM audit_events WHERE tenant_id = ?"),
+        del("DELETE FROM memberships WHERE tenant_id = ?"),
+        del("DELETE FROM tenants WHERE id = ?"),
+        // La traccia dell'eliminazione resta nel registro dell'agenzia.
+        audit(db, row.agency_id, user.id, "delete", "tenant", id),
+      ]);
+      return json({ ok: true });
+    }
+
     if (method === "PATCH") {
       if (!access.edit) return json({ error: "forbidden" }, 403);
       const { body, error } = await readJson(request);

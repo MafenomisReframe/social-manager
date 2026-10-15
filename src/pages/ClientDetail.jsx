@@ -4,6 +4,7 @@ import { navigate, clientPath, portalPath, setNavigationGuard } from "../router.
 import Chat from "../components/Chat.jsx";
 import SocialConnections from "../components/SocialConnections.jsx";
 import { ClientDashboard } from "./Portal.jsx";
+import { confirmAndDeleteClient } from "../components/deleteClient.js";
 import { PROFILE_FIELDS, validateProfile } from "../shared/validation.js";
 
 const TABS = [
@@ -122,9 +123,26 @@ export default function ClientDetail({ id, tab, onSaved }) {
   const header = (
     <div className="profile-heading">
       <h2>{saved?.name || "Scheda cliente"}</h2>
-      <button type="button" className="ghost" onClick={() => navigate("/clienti")}>
-        ← Torna ai clienti
-      </button>
+      <div className="heading-actions">
+        {client && canEdit && (
+          <button
+            type="button"
+            className="ghost danger"
+            onClick={async () => {
+              if (await confirmAndDeleteClient(client)) {
+                setNavigationGuard(null);
+                onSaved?.();
+                navigate("/clienti");
+              }
+            }}
+          >
+            Elimina cliente
+          </button>
+        )}
+        <button type="button" className="ghost" onClick={() => navigate("/clienti")}>
+          ← Torna ai clienti
+        </button>
+      </div>
     </div>
   );
 

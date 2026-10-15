@@ -142,3 +142,7 @@ button.danger{color:#ff9aa6!important;border-color:#6d3442!important}
 @media(max-width:600px){.conn-row{flex-direction:column;align-items:flex-start}}
 .page-picker{margin:4px 0 20px;padding:16px;border:1px solid #5c4b99;border-radius:14px;background:#17142b}
 .page-picker h3{margin:0 0 6px}
+.tile{position:relative}
+.tile-delete{position:absolute;top:10px;right:10px;width:30px;height:30px;padding:0!important;border-radius:9px!important;background:transparent!important;border:1px solid #3a4560!important;color:#8f9bb5!important;font-size:18px!important;line-height:1;font-weight:400!important}
+.tile-delete:hover{color:#ff9aa6!important;border-color:#6d3442!important;background:#3a1b24!important}
+.heading-actions{display:flex;gap:8px;flex-wrap:wrap}
