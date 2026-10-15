@@ -140,3 +140,5 @@ button.danger{color:#ff9aa6!important;border-color:#6d3442!important}
 .platform-empty.small{font-size:12px;margin:14px 0}
 .sync-info{display:block;margin-top:10px;color:#7f8ba5;font-size:11px}
 @media(max-width:600px){.conn-row{flex-direction:column;align-items:flex-start}}
+.page-picker{margin:4px 0 20px;padding:16px;border:1px solid #5c4b99;border-radius:14px;background:#17142b}
+.page-picker h3{margin:0 0 6px}

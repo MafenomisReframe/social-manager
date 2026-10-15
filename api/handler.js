@@ -2,7 +2,18 @@
 // così la logica è testabile senza token reali.
 import { validateProfile, PROFILE_KEYS } from "../src/shared/validation.js";
 import { loadContext, managedAgencies, clientAccess, visibleClientsFilter, ROLES } from "./permissions.js";
-import { PLATFORMS, canConnect, listSocial, startConnect, finishInstagramConnect, disconnect, syncAccount } from "./social.js";
+import {
+  PLATFORMS,
+  canConnect,
+  listSocial,
+  startConnect,
+  finishInstagramConnect,
+  finishFacebookConnect,
+  listPendingPages,
+  selectPendingPage,
+  disconnect,
+  syncAccount,
+} from "./social.js";
 
 export const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
@@ -150,12 +161,23 @@ export async function handleApi(request, env, email) {
     clientAccess(ctx, await db.prepare(CLIENT_BY_ID_SQL).bind(tenantId).first());
 
   // Ritorno dal login di Instagram (navigazione del browser, non fetch).
-  if (url.pathname === "/api/oauth/instagram/callback" && method === "GET") {
-    const { redirect } = await finishInstagramConnect(db, env, url, user, resolveAccess);
+  if ((url.pathname === "/api/oauth/instagram/callback" || url.pathname === "/api/oauth/facebook/callback") && method === "GET") {
+    const finish = url.pathname.includes("/facebook/") ? finishFacebookConnect : finishInstagramConnect;
+    const { redirect } = await finish(db, env, url, user, resolveAccess);
     return new Response(null, { status: 302, headers: { Location: redirect, "Cache-Control": "no-store" } });
   }
 
-  const socialMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/social(?:\/([a-z]+)(?:\/(connect|sync))?)?$/);
+  // Scelta della pagina Facebook dopo il login (quando l'utente ne gestisce più di una).
+  const pendingMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/social\/pending\/([0-9a-f-]{36})$/);
+  if (pendingMatch && method === "GET") {
+    const id = decodeURIComponent(pendingMatch[1]);
+    const access = await resolveAccess(id);
+    if (!access || !canConnect(access)) return json({ error: "not_found" }, 404);
+    const pages = await listPendingPages(db, env, user, id, pendingMatch[2]);
+    return pages ? json({ pages }) : json({ error: "selection_expired" }, 410);
+  }
+
+  const socialMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/social(?:\/([a-z]+)(?:\/(connect|sync|select))?)?$/);
   if (socialMatch) {
     let id;
     try {
@@ -174,6 +196,13 @@ export async function handleApi(request, env, email) {
     if (action === "connect" && method === "POST") {
       const r = await startConnect(db, env, url, user, id, platform);
       return r.error ? json({ error: r.error }, r.status) : json({ url: r.url });
+    }
+    if (action === "select" && method === "POST" && platform === "facebook") {
+      const { body, error } = await readJson(request);
+      if (error) return error;
+      const ok = await selectPendingPage(db, env, user, id, String(body?.pending || ""), String(body?.page_id || ""));
+      if (!ok) return json({ error: "selection_expired" }, 410);
+      return json({ accounts: await listSocial(db, env, id, access) });
     }
     if (action === "sync" && method === "POST") {
       const account = await db.prepare("SELECT * FROM social_accounts WHERE tenant_id = ? AND platform = ?").bind(id, platform).first();

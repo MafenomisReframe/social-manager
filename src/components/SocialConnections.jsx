@@ -1,13 +1,16 @@
 // Gestione dei collegamenti social di un cliente (lato agenzia).
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import PagePicker from "./PagePicker.jsx";
 
 const NAMES = { instagram: "Instagram", facebook: "Facebook", linkedin: "LinkedIn", tiktok: "TikTok" };
 const RESULT = {
   collegato: ["ok", "Account collegato: i primi dati sono già stati letti."],
   annullato: ["warn", "Collegamento annullato su Instagram."],
   "account-personale": ["warn", "L'account è personale: va trasformato in account professionale (business o creator) dall'app Instagram."],
-  errore: ["error", "Il collegamento non è riuscito. Riprova; se si ripete, controlla che l'account sia tra i tester dell'app Meta."],
+  errore: ["error", "Il collegamento non è riuscito. Riprova; se si ripete, mandami il messaggio che vedi."],
+  "nessuna-pagina": ["warn", "Nessuna pagina Facebook trovata: durante l'accesso seleziona la pagina del cliente, oppure verifica di esserne amministratore."],
+  scaduto: ["warn", "Accesso scaduto o già usato: premi di nuovo Collega."],
 };
 
 const when = (iso) =>
@@ -18,6 +21,7 @@ export default function SocialConnections({ clientId }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [result] = useState(() => new URLSearchParams(window.location.search).get("social"));
+  const [pending, setPending] = useState(() => new URLSearchParams(window.location.search).get("scelta"));
 
   useEffect(() => {
     api
@@ -47,11 +51,21 @@ export default function SocialConnections({ clientId }) {
     }
   }
 
-  const banner = RESULT[result];
+  const banner = pending ? null : RESULT[result];
   return (
     <div className="wide social-connections">
       <h3>Collegamenti</h3>
       {banner && <p className={"notice " + banner[0]}>{banner[1]}</p>}
+      {pending && (
+        <PagePicker
+          clientId={clientId}
+          pendingId={pending}
+          onDone={(accounts) => {
+            setAccounts(accounts);
+            setPending(null);
+          }}
+        />
+      )}
       {error && (
         <p role="alert" className="form-error">
           {error}
@@ -69,7 +83,7 @@ export default function SocialConnections({ clientId }) {
                   <b>{NAMES[a.platform]}</b>
                   <small>
                     {connected
-                      ? `${a.handle || "Collegato"} · ultimo aggiornamento ${when(a.last_sync_at)}`
+                      ? `${a.handle || "Collegato"}${a.via === "facebook_login" ? " · tramite pagina Facebook" : ""} · aggiornato ${when(a.last_sync_at)}`
                       : a.status === "expired"
                         ? "Accesso scaduto: va ricollegato"
                         : a.available

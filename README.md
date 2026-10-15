@@ -64,6 +64,7 @@ Contiene dati reali: **non azzerare il database**. Migrazioni in `migrations/`, 
 - `0002_agency_scoping.sql` — `kind`, `agency_id`, tabella `reports` (applicata il 15/10/2026)
 - `0003_client_chat.sql` — `tickets.kind` per la chat continua cliente-agenzia (applicata il 15/10/2026)
 - `0004_social_connections.sql` — token social cifrati, stati OAuth, metriche giornaliere (applicata il 15/10/2026)
+- `0005_facebook_login.sql` — `social_accounts.api` e scelta pagina dopo il login Facebook (applicata il 15/10/2026)
 
 Le nuove migrazioni vanno applicate PRIMA del deploy del codice che le usa, e devono essere additive.
 
@@ -84,6 +85,19 @@ Configurazione in Cloudflare (Worker `social-manager` → Impostazioni → Varia
 
 Nella dashboard Meta, l'URI di reindirizzamento OAuth è
 `https://social-manager.simone-87d.workers.dev/api/oauth/instagram/callback`.
+
+**Accesso tramite Facebook (metodo principale per l'agenzia).** Con `META_APP_SECRET` configurato, sia "Collega Facebook"
+sia "Collega Instagram" usano il login Facebook: si sceglie la pagina del cliente e si collegano insieme la pagina e
+l'Instagram professionale associato. I token delle pagine non scadono. Pagina Facebook: follower, `page_total_media_view_unique`
+e `page_post_engagements` (28 giorni). Instagram: stesse metriche del login Instagram, lette da graph.facebook.com.
+
+| Nome | Tipo | Valore |
+|---|---|---|
+| `META_APP_ID` | variabile | ID app Meta |
+| `META_APP_SECRET` | **Secret** | Chiave segreta app (Impostazioni app → Di base) |
+| `META_LOGIN_CONFIG_ID` | variabile, facoltativa | ID configurazione di Facebook Login for Business |
+
+URI di reindirizzamento da registrare in Facebook Login: `https://social-manager.simone-87d.workers.dev/api/oauth/facebook/callback`.
 
 ## Test
 

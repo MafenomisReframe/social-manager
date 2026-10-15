@@ -15,6 +15,7 @@ const MESSAGES = {
   platform_not_configured: "Il collegamento con questa piattaforma non è ancora stato configurato.",
   platform_not_supported: "Collegamento non ancora disponibile per questa piattaforma.",
   not_connected: "Account non collegato.",
+  selection_expired: "La scelta è scaduta: premi di nuovo Collega.",
   invalid_message: "Il messaggio è vuoto o troppo lungo (massimo 4000 caratteri).",
 };
 
@@ -63,6 +64,9 @@ export const api = {
     request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/connect", { method: "POST", body: {} }),
   syncSocial: (id, platform) =>
     request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/sync", { method: "POST", body: {} }),
+  listPendingPages: (id, pending) => request("/api/clients/" + encodeURIComponent(id) + "/social/pending/" + pending),
+  selectPage: (id, pending, pageId) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/social/facebook/select", { method: "POST", body: { pending, page_id: pageId } }),
   disconnectSocial: (id, platform) =>
     request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform, { method: "DELETE" }),
   listMessages: (id, after) =>

@@ -23,7 +23,10 @@
     "META_APP_ID": "1638911674695065",
     // ID app Instagram (Dashboard Meta > Instagram > Configurazione API con login Instagram).
     // I segreti IG_APP_SECRET e TOKEN_ENC_KEY si impostano come Secret in Cloudflare, MAI qui.
-    "IG_APP_ID": "1386540906802908"
+    "IG_APP_ID": "1386540906802908",
+    // Facultativo: ID della "configurazione" di Facebook Login for Business (se assente si usano gli scope).
+    // Secret richiesti per l'accesso tramite Facebook: META_APP_SECRET (+ TOKEN_ENC_KEY).
+    "META_LOGIN_CONFIG_ID": ""
   },
   "triggers": {
     // Lettura giornaliera delle statistiche social (05:15 UTC).

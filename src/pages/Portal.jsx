@@ -6,6 +6,7 @@ import { api } from "../api.js";
 import { navigate, portalPath, clientPath } from "../router.jsx";
 import Chat from "../components/Chat.jsx";
 import DemoBadge from "../components/DemoBadge.jsx";
+import PagePicker from "../components/PagePicker.jsx";
 import { DEMO_POSTS } from "../data/demo.js";
 
 const TABS = [
@@ -154,7 +155,7 @@ function realData(account) {
   };
 }
 
-function useSocial(clientId) {
+function useSocial(clientId, reload = 0) {
   const [accounts, setAccounts] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -165,16 +166,31 @@ function useSocial(clientId) {
     return () => {
       alive = false;
     };
-  }, [clientId]);
+  }, [clientId, reload]);
   return accounts;
 }
 
 function Overview({ client, demo }) {
-  const accounts = useSocial(client.id);
+  const [reload, setReload] = useState(0);
+  const accounts = useSocial(client.id, reload);
+  const [pending, setPending] = useState(() => new URLSearchParams(window.location.search).get("scelta"));
   const byPlatform = Object.fromEntries((accounts || []).map((a) => [a.platform, a]));
   const connected = demo ? 4 : (accounts || []).filter((a) => a.status === "connected").length;
   return (
     <>
+      {pending && !demo && (
+        <section className="panel">
+          <PagePicker
+            clientId={client.id}
+            pendingId={pending}
+            onDone={() => {
+              setPending(null);
+              window.history.replaceState(null, "", window.location.pathname);
+              setReload((n) => n + 1);
+            }}
+          />
+        </section>
+      )}
       <div className="portal-kpis">
         <article>
           <span>Account collegati</span>
