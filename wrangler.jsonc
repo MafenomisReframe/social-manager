@@ -16,5 +16,8 @@
       "database_name": "social-manager-db",
       "database_id": "4af520f0-a65c-4c63-ac9b-6d8144a25d71"
     }
-  ]
+  ],
+  "vars": {
+    "POLICY_AUD": "32bb6502c0890075baa29f08ccad548fe9f3b7b5eb32718c9dd0f59e4ca4c7b7"
+  }
 }
