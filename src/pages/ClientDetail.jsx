@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { navigate, clientPath, portalPath, setNavigationGuard } from "../router.jsx";
 import Chat from "../components/Chat.jsx";
 import SocialConnections from "../components/SocialConnections.jsx";
+import ClientAccess from "../components/ClientAccess.jsx";
 import { ClientDashboard } from "./Portal.jsx";
 import { confirmAndDeleteClient } from "../components/deleteClient.js";
 import { PROFILE_FIELDS, validateProfile } from "../shared/validation.js";
@@ -12,6 +13,7 @@ const TABS = [
   { slug: "anagrafica", label: "Anagrafica" },
   { slug: "social", label: "Profili social" },
   { slug: "chat", label: "Chat" },
+  { slug: "accessi", label: "Accessi" },
   { slug: "brand", label: "Brand" },
   { slug: "calendario", label: "Calendario" },
 ];
@@ -246,6 +248,8 @@ export default function ClientDetail({ id, tab, onSaved }) {
       )}
       {activeTab === "" && client && <ClientDashboard client={client} />}
 
+      {activeTab === "accessi" && client && <ClientAccess client={client} />}
+
       {activeTab === "chat" && (
         <div className="coming-soon">
           <p>Conversazione con il cliente: lui la vede, identica, nella sua area riservata.</p>
@@ -292,7 +296,13 @@ function PortalLink({ id }) {
           Anteprima →
         </button>
       </div>
-      <p>Il cliente potrà aprirlo dopo essere stato invitato con la sua email (prossimo passo: inviti).</p>
+      <p>
+        Il cliente lo apre con la sua email, dopo che gliel'hai abilitata nella sezione{" "}
+        <a href={clientPath(id, "accessi")} onClick={(e) => { e.preventDefault(); navigate(clientPath(id, "accessi")); }}>
+          Accessi
+        </a>
+        .
+      </p>
     </div>
   );
 }

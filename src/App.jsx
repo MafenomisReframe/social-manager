@@ -66,6 +66,11 @@ export default function App() {
           <p role="alert" className="form-error">
             {sessionError}
           </p>
+          <p>
+            <a className="logout" href="/cdn-cgi/access/logout">
+              Esci e accedi con un'altra email
+            </a>
+          </p>
         </section>
       </div>
     );

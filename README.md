@@ -46,6 +46,15 @@ npm run build      # genera dist/ usata dal Worker
 - **Agenzia** (`/clienti/<id>`): anagrafica, note interne, profili social, chat, lavorazione. In testa alla scheda c'è il link fisso dell'area cliente, da copiare e mandare.
 - **Area cliente** (`/portale/<id>`): dashboard per piattaforma, contenuti, report e chat. Niente anagrafica né note interne. Un utente cliente viene sempre portato qui. L'agenzia la apre in anteprima e può attivare "dati di esempio", sempre etichettati.
 
+## Accessi del cliente
+
+Nella scheda cliente, sezione **Accessi**, l'agenzia abilita le email delle persone del cliente (ruolo `client_viewer`).
+L'identità è verificata da Cloudflare Access con codice monouso via email; il Worker decide chi è abilitato
+(un'email non invitata riceve `account_not_provisioned`). Dopo l'invito l'app prepara il messaggio da inviare, con il link fisso.
+
+Configurazione Cloudflare Zero Trust necessaria: metodo di accesso **One-time PIN** attivo e policy dell'applicazione
+che consente l'accesso a chiunque verifichi la propria email (l'autorizzazione vera è nel Worker).
+
 ## Ruoli e permessi
 
 | Ruolo | Dove | Può fare |

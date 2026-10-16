@@ -3,7 +3,7 @@
 const MESSAGES = {
   unauthorized: "Sessione scaduta: ricarica la pagina per accedere di nuovo.",
   invalid_access_token: "Sessione scaduta: ricarica la pagina per accedere di nuovo.",
-  account_not_provisioned: "Il tuo account non è ancora abilitato.",
+  account_not_provisioned: "Questo indirizzo email non è abilitato. Chiedi all'agenzia di invitarti, oppure esci e accedi con l'email a cui è arrivato l'invito.",
   auth_not_configured: "Autenticazione non configurata sul server.",
   forbidden: "Non hai i permessi per questa operazione.",
   not_found: "Elemento non trovato.",
@@ -17,6 +17,8 @@ const MESSAGES = {
   not_connected: "Account non collegato.",
   selection_expired: "La scelta è scaduta: premi di nuovo Collega.",
   confirm_name_mismatch: "Il nome scritto non corrisponde: cliente NON eliminato.",
+  invalid_email: "Indirizzo email non valido.",
+  already_agency: "Questa email appartiene al team dell'agenzia: vede già tutti i clienti.",
   invalid_message: "Il messaggio è vuoto o troppo lungo (massimo 4000 caratteri).",
 };
 
@@ -62,6 +64,11 @@ export const api = {
   updateClient: (id, data) => request("/api/clients/" + encodeURIComponent(id), { method: "PATCH", body: data }),
   deleteClient: (id, confirmName) =>
     request("/api/clients/" + encodeURIComponent(id), { method: "DELETE", body: { confirm_name: confirmName } }),
+  listMembers: (id) => request("/api/clients/" + encodeURIComponent(id) + "/members"),
+  inviteMember: (id, email, name) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/members", { method: "POST", body: { email, name } }),
+  removeMember: (id, userId) =>
+    request("/api/clients/" + encodeURIComponent(id) + "/members/" + encodeURIComponent(userId), { method: "DELETE" }),
   listSocial: (id) => request("/api/clients/" + encodeURIComponent(id) + "/social"),
   connectSocial: (id, platform) =>
     request("/api/clients/" + encodeURIComponent(id) + "/social/" + platform + "/connect", { method: "POST", body: {} }),

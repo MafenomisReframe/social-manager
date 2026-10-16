@@ -219,6 +219,75 @@ export async function handleApi(request, env, email) {
     return json({ error: "not_found" }, 404);
   }
 
+  // Accessi del cliente: le persone (email) che possono entrare nella sua area riservata.
+  // L'identità è verificata da Cloudflare Access (codice via email); qui si decide CHI è abilitato.
+  const membersMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/members(?:\/([^/]+))?$/);
+  if (membersMatch) {
+    let id;
+    try {
+      id = decodeURIComponent(membersMatch[1]);
+    } catch {
+      return json({ error: "not_found" }, 404);
+    }
+    const access = await resolveAccess(id);
+    if (!access) return json({ error: "not_found" }, 404);
+    if (!access.edit) return json({ error: "forbidden" }, 403);
+    const listMembers = async () =>
+      (
+        await db
+          .prepare(
+            "SELECT u.id, u.email, u.display_name, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id " +
+              "WHERE m.tenant_id = ? AND m.role = 'client_viewer' ORDER BY u.email"
+          )
+          .bind(id)
+          .all()
+      ).results;
+
+    if (!membersMatch[2] && method === "GET") return json({ members: await listMembers() });
+
+    if (!membersMatch[2] && method === "POST") {
+      const { body, error } = await readJson(request);
+      if (error) return error;
+      const { values, errors } = validateProfile({ email: typeof body?.email === "string" ? body.email : "" });
+      if (errors.email || !values.email) return json({ error: "invalid_email" }, 400);
+      const email = values.email;
+      const displayName = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
+
+      let invited = await db.prepare("SELECT id, display_name FROM users WHERE email = ?").bind(email).first();
+      if (invited) {
+        // Chi lavora in agenzia vede già tutti i clienti: non va aggiunto come cliente.
+        const agencyRole = await db
+          .prepare("SELECT 1 FROM memberships m JOIN tenants t ON t.id = m.tenant_id WHERE m.user_id = ? AND t.kind = 'agency'")
+          .bind(invited.id)
+          .first();
+        if (agencyRole) return json({ error: "already_agency" }, 409);
+      }
+      const stmts = [];
+      if (!invited) {
+        invited = { id: crypto.randomUUID() };
+        stmts.push(db.prepare("INSERT INTO users(id, email, display_name) VALUES(?,?,?)").bind(invited.id, email, displayName || null));
+      } else if (displayName && !invited.display_name) {
+        stmts.push(db.prepare("UPDATE users SET display_name = ? WHERE id = ?").bind(displayName, invited.id));
+      }
+      stmts.push(
+        db.prepare("INSERT OR IGNORE INTO memberships(tenant_id, user_id, role) VALUES(?,?,'client_viewer')").bind(id, invited.id),
+        audit(db, id, user.id, "invite", "user", invited.id)
+      );
+      await db.batch(stmts);
+      return json({ members: await listMembers() }, 201);
+    }
+
+    if (membersMatch[2] && method === "DELETE") {
+      const memberId = decodeURIComponent(membersMatch[2]);
+      await db.batch([
+        db.prepare("DELETE FROM memberships WHERE tenant_id = ? AND user_id = ? AND role = 'client_viewer'").bind(id, memberId),
+        audit(db, id, user.id, "revoke", "user", memberId),
+      ]);
+      return json({ members: await listMembers() });
+    }
+    return json({ error: "not_found" }, 404);
+  }
+
   const chatMatch = url.pathname.match(/^\/api\/clients\/([^/]+)\/messages$/);
   if (chatMatch) {
     let id;

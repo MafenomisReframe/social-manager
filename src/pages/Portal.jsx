@@ -100,6 +100,11 @@ export default function Portal({ id, tab, agencyView }) {
             <p>Area riservata · a cura di {agencyName}</p>
           </div>
         </div>
+        {!agencyView && (
+          <a className="logout" href="/cdn-cgi/access/logout">
+            Esci
+          </a>
+        )}
         <nav className="portal-tabs" aria-label="Sezioni dell'area cliente">
           {TABS.map((t) => (
             <button

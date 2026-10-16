@@ -26,7 +26,11 @@ export default function Sidebar({ current, session }) {
           </button>
         ))}
       </nav>
-      <small>Clienti salvati in D1 · Contenuti demo</small>
+      <small>
+        <a className="logout" href="/cdn-cgi/access/logout">
+          Esci
+        </a>
+      </small>
     </aside>
   );
 }

@@ -212,3 +212,48 @@ describe("eliminazione cliente", () => {
     expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM tenants").get().n).toBe(5);
   });
 });
+
+describe("accessi del cliente (inviti)", () => {
+  test("l'agenzia invita un'email: la persona entra e vede solo quel cliente", async () => {
+    const r = await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: " Mario@Cliente.IT ", name: "Mario" });
+    expect(r.status).toBe(201);
+    expect(r.data.members.map((m) => [m.email, m.display_name])).toEqual([
+      ["mario@cliente.it", "Mario"],
+      ["viewer@a1.it", null],
+    ]);
+    expect(ids(await call("mario@cliente.it", "GET", "/api/clients"))).toEqual(["client-a1"]);
+    const c = await call("mario@cliente.it", "GET", "/api/clients/client-a1");
+    expect(c.data.client.permissions).toEqual({ role: "client_viewer", edit: false });
+  });
+  test("invitare due volte la stessa email non crea doppioni", async () => {
+    await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "mario@cliente.it" });
+    await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "MARIO@cliente.it" });
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM users WHERE email='mario@cliente.it'").get().n).toBe(1);
+    expect(env.DB.raw.query("SELECT COUNT(*) AS n FROM memberships m JOIN users u ON u.id=m.user_id WHERE u.email='mario@cliente.it'").get().n).toBe(1);
+  });
+  test("la stessa persona può essere invitata su due clienti", async () => {
+    await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "mario@cliente.it" });
+    await call("owner@a.it", "POST", "/api/clients/client-a2/members", { email: "mario@cliente.it" });
+    expect(ids(await call("mario@cliente.it", "GET", "/api/clients"))).toEqual(["client-a1", "client-a2"]);
+  });
+  test("togliere l'accesso blocca subito la persona", async () => {
+    const r = await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "mario@cliente.it" });
+    const mario = r.data.members.find((m) => m.email === "mario@cliente.it");
+    await call("owner@a.it", "DELETE", `/api/clients/client-a1/members/${mario.id}`);
+    expect((await call("mario@cliente.it", "GET", "/api/clients/client-a1")).status).toBe(404);
+    expect(ids(await call("mario@cliente.it", "GET", "/api/clients"))).toEqual([]);
+  });
+  test("email non valida o del team agenzia rifiutate", async () => {
+    expect((await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "pippo" })).status).toBe(400);
+    expect((await call("owner@a.it", "POST", "/api/clients/client-a1/members", { email: "editor@a.it" })).status).toBe(409);
+  });
+  test("il cliente e le altre agenzie non vedono né modificano gli accessi", async () => {
+    expect((await call("viewer@a1.it", "GET", "/api/clients/client-a1/members")).status).toBe(403);
+    expect((await call("viewer@a1.it", "POST", "/api/clients/client-a1/members", { email: "x@y.it" })).status).toBe(403);
+    expect((await call("owner@b.it", "GET", "/api/clients/client-a1/members")).status).toBe(404);
+    expect((await call("owner@b.it", "POST", "/api/clients/client-a1/members", { email: "x@y.it" })).status).toBe(404);
+  });
+  test("una persona non invitata viene respinta", async () => {
+    expect((await call("estraneo@x.it", "GET", "/api/clients")).data.error).toBe("account_not_provisioned");
+  });
+});
